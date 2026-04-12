@@ -56,6 +56,7 @@ class FloatingIndicator:
         "listen":      "#7c5cfc",
         "transcribe":  "#f39c12",
         "done":        "#27ae60",
+        "error":       "#e74c3c",
     }
 
     def __init__(self, root: tk.Tk):
