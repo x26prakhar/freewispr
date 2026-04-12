@@ -5,6 +5,7 @@ Entry point: system tray icon + dictation mode.
 import sys
 import threading
 import tkinter as tk
+from tkinter import messagebox
 
 from PIL import Image, ImageDraw
 import pystray
@@ -25,6 +26,7 @@ _tray_icon: pystray.Icon | None = None
 _tk_root: tk.Tk | None = None
 _status_var: tk.StringVar | None = None
 _indicator: FloatingIndicator | None = None
+_settings_window: SettingsWindow | None = None
 
 
 # --------------------------------------------------------------------------- #
@@ -72,6 +74,7 @@ def _load_app():
         hotkey=_config.get("hotkey", "ctrl+space"),
         on_status=_set_tray_status,
         indicator=_indicator,
+        on_mic_error=_handle_mic_error,
     )
     _dictation.start()
     _set_tray_status(f"Ready — hold {_config.get('hotkey','ctrl+space').upper()} to speak")
@@ -117,7 +120,37 @@ def _open_settings(_=None):
 
 
 def _show_settings():
-    SettingsWindow(_config, on_save=_apply_settings)
+    global _settings_window
+
+    if _settings_window and _settings_window.root.winfo_exists():
+        _settings_window.root.lift()
+        _settings_window.root.focus_force()
+        return _settings_window
+
+    _settings_window = SettingsWindow(_config, on_save=_apply_settings)
+
+    def _on_destroy(event):
+        global _settings_window
+        if _settings_window and event.widget == _settings_window.root:
+            _settings_window = None
+
+    _settings_window.root.bind("<Destroy>", _on_destroy, add="+")
+    return _settings_window
+
+
+def _handle_mic_error(message: str):
+    if not _tk_root:
+        return
+
+    def _show():
+        settings = _show_settings()
+        messagebox.showerror(
+            "freewispr — Microphone Error",
+            f"freewispr could not access your microphone.\n\n{message}",
+            parent=settings.root if settings else None,
+        )
+
+    _tk_root.after(0, _show)
 
 
 def _apply_settings(new_cfg: dict):
@@ -138,6 +171,7 @@ def _apply_settings(new_cfg: dict):
         hotkey=_config.get("hotkey", "ctrl+space"),
         on_status=_set_tray_status,
         indicator=_indicator,
+        on_mic_error=_handle_mic_error,
     )
     _dictation.start()
     _set_tray_status(f"Settings saved — hold {_config.get('hotkey','ctrl+space').upper()} to speak")

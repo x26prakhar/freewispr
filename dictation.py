@@ -12,12 +12,13 @@ MIN_AUDIO_SAMPLES = 3200  # 0.2 s at 16 kHz — ignore accidental taps
 
 class DictationMode:
     def __init__(self, transcriber: Transcriber, hotkey: str = "ctrl+space",
-                 on_status=None, indicator=None):
+                 on_status=None, indicator=None, on_mic_error=None):
         self.transcriber = transcriber
         self.hotkey = hotkey
         self.recorder = MicRecorder()
         self.on_status = on_status or (lambda msg: None)
         self.indicator = indicator
+        self.on_mic_error = on_mic_error or (lambda msg: None)
         self._active = False
         self._recording = False
 
@@ -54,7 +55,17 @@ class DictationMode:
     def _on_press(self, _):
         if self._active and not self._recording and self._modifier_held():
             self._recording = True
-            self.recorder.start()
+            try:
+                self.recorder.start()
+            except Exception as e:
+                self._recording = False
+                print(f"Mic start error: {e}", flush=True)
+                self.on_status("Mic unavailable — check input device/permissions")
+                self.on_mic_error(str(e))
+                if self.indicator:
+                    self.indicator.show("Mic unavailable for freewispr", state="error")
+                    self.indicator.hide(delay_ms=2200)
+                return
             self.on_status("Listening…")
             if self.indicator:
                 self.indicator.show("Listening…", state="listen")
